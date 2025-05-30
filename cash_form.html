@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>GoodBuns — Кассовый отчёт (Защищено)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #2e2e2e;
+      color: #f2f2f2;
+      margin: 0;
+      padding: 30px;
+    }
+    .container {
+      background: #3a3a3a;
+      max-width: 600px;
+      margin: auto;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.6);
+    }
+    h2, h3 {
+      text-align: center;
+      color: #ffffff;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0 20px;
+      background: #4a4a4a;
+      border: 1px solid #777;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 16px;
+    }
+    input::placeholder {
+      color: #bbb;
+    }
+    button {
+      width: 100%;
+      background: #00c853;
+      color: white;
+      padding: 12px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+    button:hover:enabled {
+      background: #00e676;
+    }
+    .success {
+      text-align: center;
+      margin-top: 20px;
+      font-weight: bold;
+      color: #00e676;
+    }
+    #formBlock { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Вход — кассовый отчёт</h2>
+    <div id="pinBlock">
+      <input type="password" id="pinInput" placeholder="Введите PIN-код">
+      <button onclick="checkPin()">Продолжить</button>
+    </div>
+
+    <div id="formBlock">
+      <h3 id="pointName" style="color:#00e676;"></h3>
+      <form id="cashForm">
+        <input type="hidden" name="point" id="pointField">
+        <input type="date" name="date" required>
+        <input type="number" step="0.01" name="cash" placeholder="Наличные (₽)">
+        <input type="number" step="0.01" name="card" placeholder="Безналичные (₽)">
+        <input type="number" step="0.01" name="return_cash" placeholder="Возврат (наличные ₽)">
+        <input type="number" step="0.01" name="return_card" placeholder="Возврат (безналичные ₽)">
+        <input type="number" step="0.01" name="total" id="total" placeholder="Итого (₽)" readonly>
+        <input type="number" step="0.01" name="lunches" placeholder="Обеды (₽)">
+        <input type="number" step="0.01" name="writeoff" placeholder="Списание (₽)">
+        <button type="submit">Отправить отчёт</button>
+        <div class="success" id="successMessage" style="display:none;">✅ Отчёт отправлен!</div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const pins = {
+      "1111": "Магистраль Плаза",
+      "2222": "Омега Плаза",
+      "3333": "Черри Тауэр",
+      "4444": "Гефест"
+    };
+
+    function checkPin() {
+      const pin = document.getElementById("pinInput").value;
+      if (pins[pin]) {
+        document.getElementById("pinBlock").style.display = "none";
+        document.getElementById("formBlock").style.display = "block";
+        document.getElementById("pointField").value = pins[pin];
+        document.getElementById("pointName").innerText = "📍 " + pins[pin];
+      } else {
+        alert("Неверный PIN-код");
+      }
+    }
+
+    function updateTotal() {
+      const cash = parseFloat(document.querySelector('input[name="cash"]').value) || 0;
+      const card = parseFloat(document.querySelector('input[name="card"]').value) || 0;
+      document.getElementById("total").value = (cash + card).toFixed(2);
+    }
+
+    document.addEventListener("input", function(e) {
+      if (["cash", "card"].includes(e.target.name)) {
+        updateTotal();
+      }
+    });
+
+    const form = document.getElementById("cashForm");
+    const submitBtn = form.querySelector("button");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = "⏳ Отправка...";
+      const formData = new FormData(form);
+      const response = await fetch("https://your-server.onrender.com/submit_cash", {
+        method: "POST",
+        body: formData
+      });
+      const result = await response.json();
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Отправить отчёт";
+      if (result.status === "ok") {
+        document.getElementById("successMessage").style.display = "block";
+        form.reset();
+        document.getElementById("total").value = "";
+      }
+    });
+  </script>
+</body>
+</html>
