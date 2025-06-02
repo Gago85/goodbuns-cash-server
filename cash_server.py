@@ -2,12 +2,15 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
 import os
+import json
 import openpyxl
 from openpyxl.styles import Font, Alignment
 import requests
 from dotenv import load_dotenv
+from pathlib import Path
+import shutil
 
-# Загружаем переменные из .env
+# Загрузка переменных из .env
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -16,9 +19,12 @@ CHAT_ID = os.getenv("CHAT_ID")
 app = Flask(__name__)
 CORS(app)
 
-SAVE_FOLDER = "cash_reports"
-if not os.path.exists(SAVE_FOLDER):
-    os.makedirs(SAVE_FOLDER)
+# Пути для сохранения файлов
+EXCEL_FOLDER = "cash_reports"
+LOCAL_ARCHIVE_FOLDER = r"D:\GoodbunsAIcash"
+
+Path(EXCEL_FOLDER).mkdir(parents=True, exist_ok=True)
+Path(LOCAL_ARCHIVE_FOLDER).mkdir(parents=True, exist_ok=True)
 
 def create_excel(data):
     wb = openpyxl.Workbook()
@@ -49,9 +55,20 @@ def create_excel(data):
     ws.append(row)
 
     filename = f"Кассовый отчёт - {data.get('point')} - {data.get('date')}.xlsx"
-    filepath = os.path.join(SAVE_FOLDER, filename)
+    filepath = os.path.join(EXCEL_FOLDER, filename)
     wb.save(filepath)
-    return filepath
+    return filepath, filename
+
+def save_json(data, filename):
+    json_path = os.path.join(LOCAL_ARCHIVE_FOLDER, filename.replace(".xlsx", ".json"))
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return json_path
+
+def copy_excel_to_local(filepath, filename):
+    dest_path = os.path.join(LOCAL_ARCHIVE_FOLDER, filename)
+    shutil.copy(filepath, dest_path)
+    return dest_path
 
 def send_to_telegram(filepath):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
@@ -65,15 +82,31 @@ def send_to_telegram(filepath):
 @app.route("/submit_cash", methods=["POST"])
 def handle_cash():
     try:
-        data = request.form
-        filepath = create_excel(data)
+        data = request.form.to_dict()
+
+        # Устанавливаем дату, если не передана
+        if not data.get("date"):
+            data["date"] = datetime.now().strftime("%Y-%m-%d")
+
+        # Создаём Excel-файл
+        filepath, filename = create_excel(data)
+
+        # Сохраняем JSON и Excel локально
+        save_json(data, filename)
+        copy_excel_to_local(filepath, filename)
+
+        # Отправляем Excel в Telegram
         sent = send_to_telegram(filepath)
-        return jsonify({"status": "ok", "file": filepath, "telegram_sent": sent}), 200
+
+        return jsonify({
+            "status": "ok",
+            "file": filepath,
+            "telegram_sent": sent
+        }), 200
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
