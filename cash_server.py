@@ -19,14 +19,11 @@ CHAT_ID = os.getenv("CHAT_ID")
 app = Flask(__name__)
 CORS(app)
 
-# Пути для сохранения файлов
-EXCEL_FOLDER = "cash_reports"
-LOCAL_ARCHIVE_FOLDER = r"D:\GoodbunsAIcash"
+# Пути для сохранения файлов на Render
+BASE_FOLDER = Path("data")
+BASE_FOLDER.mkdir(parents=True, exist_ok=True)
 
-Path(EXCEL_FOLDER).mkdir(parents=True, exist_ok=True)
-Path(LOCAL_ARCHIVE_FOLDER).mkdir(parents=True, exist_ok=True)
-
-def create_excel(data):
+def create_excel(data, save_dir):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Касса"
@@ -55,20 +52,15 @@ def create_excel(data):
     ws.append(row)
 
     filename = f"Кассовый отчёт - {data.get('point')} - {data.get('date')}.xlsx"
-    filepath = os.path.join(EXCEL_FOLDER, filename)
+    filepath = save_dir / filename
     wb.save(filepath)
     return filepath, filename
 
-def save_json(data, filename):
-    json_path = os.path.join(LOCAL_ARCHIVE_FOLDER, filename.replace(".xlsx", ".json"))
+def save_json(data, save_dir, filename):
+    json_path = save_dir / filename.replace(".xlsx", ".json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return json_path
-
-def copy_excel_to_local(filepath, filename):
-    dest_path = os.path.join(LOCAL_ARCHIVE_FOLDER, filename)
-    shutil.copy(filepath, dest_path)
-    return dest_path
 
 def send_to_telegram(filepath):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
@@ -84,23 +76,19 @@ def handle_cash():
     try:
         data = request.form.to_dict()
 
-        # Устанавливаем дату, если не передана
         if not data.get("date"):
             data["date"] = datetime.now().strftime("%Y-%m-%d")
 
-        # Создаём Excel-файл
-        filepath, filename = create_excel(data)
+        date_folder = BASE_FOLDER / data["date"]
+        date_folder.mkdir(parents=True, exist_ok=True)
 
-        # Сохраняем JSON и Excel локально
-        save_json(data, filename)
-        copy_excel_to_local(filepath, filename)
-
-        # Отправляем Excel в Telegram
+        filepath, filename = create_excel(data, date_folder)
+        save_json(data, date_folder, filename)
         sent = send_to_telegram(filepath)
 
         return jsonify({
             "status": "ok",
-            "file": filepath,
+            "file": str(filepath),
             "telegram_sent": sent
         }), 200
 
