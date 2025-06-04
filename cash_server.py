@@ -24,6 +24,13 @@ CORS(app)
 BASE_FOLDER = Path("data")
 BASE_FOLDER.mkdir(parents=True, exist_ok=True)
 
+# ✅ Безопасное преобразование в float
+def safe_float(value):
+    try:
+        return float(value)
+    except:
+        return 0.0
+
 def create_excel(data, save_dir):
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -42,13 +49,13 @@ def create_excel(data, save_dir):
     row = [
         data.get("date"),
         data.get("point"),
-        float(data.get("cash", 0)),
-        float(data.get("card", 0)),
-        float(data.get("return_cash", 0)),
-        float(data.get("return_card", 0)),
-        float(data.get("total", 0)),
-        float(data.get("lunches", 0)),
-        float(data.get("writeoff", 0))
+        safe_float(data.get("cash")),
+        safe_float(data.get("card")),
+        safe_float(data.get("return_cash")),
+        safe_float(data.get("return_card")),
+        safe_float(data.get("total")),
+        safe_float(data.get("lunches")),
+        safe_float(data.get("writeoff"))
     ]
     ws.append(row)
 
@@ -99,7 +106,7 @@ def handle_cash():
         logging.error(error_text)
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 🔍 Временный маршрут для просмотра последних ошибок
+# 🔍 Временный маршрут для просмотра ошибок
 @app.route("/last_error", methods=["GET"])
 def last_error():
     try:
