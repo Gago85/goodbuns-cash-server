@@ -2,83 +2,72 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
 import os
-import json
-import openpyxl
-from openpyxl.styles import Font, Alignment
-import requests
-from dotenv import load_dotenv
-from pathlib import Path
 import logging
+import requests
+from openpyxl import Workbook
+import json
+from pathlib import Path
+from dotenv import load_dotenv
 
-# 🔔 Логируем ошибки в файл
-logging.basicConfig(filename="errors.log", level=logging.ERROR, format="%(asctime)s - %(message)s")
-
-# 📦 Загружаем .env переменные
 load_dotenv()
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
 
 app = Flask(__name__)
 CORS(app)
 
-BASE_FOLDER = Path("data")
-BASE_FOLDER.mkdir(parents=True, exist_ok=True)
+# 🔐 Конфигурация
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "вставь_сюда_токен")
+CHAT_ID = os.getenv("CHAT_ID", "вставь_сюда_chat_id")
+BASE_FOLDER = Path("D:/GoodbunsAIcash")
 
-# ✅ Безопасное преобразование в float
-def safe_float(value):
-    try:
-        return float(value)
-    except:
-        return 0.0
-
-def create_excel(data, save_dir):
-    wb = openpyxl.Workbook()
+# 🧾 Создание Excel-файла
+def create_excel(data, save_folder):
+    wb = Workbook()
     ws = wb.active
-    ws.title = "Касса"
+    ws.title = "Кассовый отчёт"
 
-    headers = [
-        "Дата", "Точка", "Наличные", "Безналичные",
-        "Возврат (нал)", "Возврат (безнал)", "Итого", "Обеды (₽)", "Списание (₽)"
-    ]
-    ws.append(headers)
+    ws.append(["Дата", "Точка", "Наличные", "Безналичные", "Возврат (нал)", "Возврат (безнал)",
+               "Итого", "Обеды", "Списание", "Комментарий"])
+    ws.append([
+        data.get("date", ""),
+        data.get("point", ""),
+        data.get("cash", ""),
+        data.get("card", ""),
+        data.get("return_cash", ""),
+        data.get("return_card", ""),
+        data.get("total", ""),
+        data.get("lunches", ""),
+        data.get("writeoff", ""),
+        data.get("comment", "")
+    ])
 
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center")
-
-    row = [
-        data.get("date"),
-        data.get("point"),
-        safe_float(data.get("cash")),
-        safe_float(data.get("card")),
-        safe_float(data.get("return_cash")),
-        safe_float(data.get("return_card")),
-        safe_float(data.get("total")),
-        safe_float(data.get("lunches")),
-        safe_float(data.get("writeoff"))
-    ]
-    ws.append(row)
-
-    filename = f"Кассовый отчёт - {data.get('point')} - {data.get('date')}.xlsx"
-    filepath = save_dir / filename
+    filename = f"Кассовый отчёт - {data['point']} - {data['date']}.xlsx"
+    filepath = save_folder / filename
     wb.save(filepath)
     return filepath, filename
 
-def save_json(data, save_dir, filename):
-    json_path = save_dir / filename.replace(".xlsx", ".json")
+# 💾 Сохраняем JSON копию
+def save_json(data, save_folder, filename):
+    json_path = save_folder / (filename.replace(".xlsx", ".json"))
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    return json_path
 
+# 📤 Отправка в Telegram
 def send_to_telegram(filepath):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    with open(filepath, "rb") as file:
-        response = requests.post(url, data={
-            "chat_id": CHAT_ID,
-            "caption": "💰 Новый кассовый отчёт"
-        }, files={"document": file})
-    return response.status_code == 200
+    try:
+        with open(filepath, "rb") as file:
+            response = requests.post(url, data={
+                "chat_id": CHAT_ID,
+                "caption": "💰 Новый кассовый отчёт"
+            }, files={"document": file})
 
+        logging.error(f"Telegram response: {response.status_code} - {response.text}")
+        return response.status_code == 200
+    except Exception as e:
+        logging.error(f"Telegram send error: {str(e)}")
+        return False
+
+# 📥 Приём отчёта
 @app.route("/submit_cash", methods=["POST"])
 def handle_cash():
     try:
@@ -106,7 +95,7 @@ def handle_cash():
         logging.error(error_text)
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 🔍 Временный маршрут для просмотра ошибок
+# 🔍 Просмотр последних ошибок
 @app.route("/last_error", methods=["GET"])
 def last_error():
     try:
@@ -116,6 +105,10 @@ def last_error():
     except Exception as e:
         return f"Ошибка чтения лога: {str(e)}"
 
+# ⚙️ Логирование
+logging.basicConfig(filename="errors.log", level=logging.ERROR, format="%(asctime)s - %(message)s")
+
+# 🚀 Запуск
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
