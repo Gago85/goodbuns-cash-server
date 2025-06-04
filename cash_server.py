@@ -92,8 +92,10 @@ def handle_cash():
             "telegram_sent": sent
         }), 200
 
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+   except Exception as e:
+    print("❌ Ошибка:", e)
+    return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
