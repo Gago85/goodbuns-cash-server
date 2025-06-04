@@ -10,10 +10,10 @@ from dotenv import load_dotenv
 from pathlib import Path
 import logging
 
-# 🔔 Настраиваем логирование в файл
+# 🔔 Логируем ошибки в файл
 logging.basicConfig(filename="errors.log", level=logging.ERROR, format="%(asctime)s - %(message)s")
 
-# Загружаем токены из .env
+# 📦 Загружаем .env переменные
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -99,6 +99,17 @@ def handle_cash():
         logging.error(error_text)
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# 🔍 Временный маршрут для просмотра последних ошибок
+@app.route("/last_error", methods=["GET"])
+def last_error():
+    try:
+        with open("errors.log", "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            return "<br>".join(lines[-10:]) or "Нет ошибок"
+    except Exception as e:
+        return f"Ошибка чтения лога: {str(e)}"
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+Добавил просмотр ошибок
