@@ -8,18 +8,19 @@ from openpyxl.styles import Font, Alignment
 import requests
 from dotenv import load_dotenv
 from pathlib import Path
-import shutil
+import logging
 
-# Загрузка переменных из .env
+# 🔔 Настраиваем логирование в файл
+logging.basicConfig(filename="errors.log", level=logging.ERROR, format="%(asctime)s - %(message)s")
+
+# Загружаем токены из .env
 load_dotenv()
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 app = Flask(__name__)
 CORS(app)
 
-# Пути для сохранения файлов на Render
 BASE_FOLDER = Path("data")
 BASE_FOLDER.mkdir(parents=True, exist_ok=True)
 
@@ -93,11 +94,11 @@ def handle_cash():
         }), 200
 
     except Exception as e:
-        print("❌ Ошибка:", e)
+        error_text = f"❌ Ошибка: {str(e)}"
+        print(error_text)
+        logging.error(error_text)
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
